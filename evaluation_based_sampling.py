@@ -1,9 +1,17 @@
 # Standard imports
 import torch
 from enum import Enum
+from collections import defaultdict
 
 # Project imports
 from primitives import primitives
+
+class EvaluationScheme(Enum):
+
+    DEFAULT = 0
+    IS = 1
+    MH = 2
+    GIBBS = 3
 
 class ExpressionType(Enum):
 
@@ -90,7 +98,7 @@ class AbstractSyntaxTree:
                 self.expressions.append(Expression(elem))
 
 
-def eval_expression(expression, sigma, local_env, procedures):
+def eval_expression(expression, sigma, local_env, procedures, eval_scheme=EvaluationScheme.DEFAULT):
     """Helper fucnction which evaluates expression, using a local environment and a sigma."""
     expr_type = expression.type
 
@@ -100,16 +108,18 @@ def eval_expression(expression, sigma, local_env, procedures):
             return torch.tensor(expression.json, dtype=torch.float), sigma
         case ExpressionType.VARIABLE:
             # Grab the variable from the local environment.
-            return local_env[expression.json], sigma
+            return local_env[expression.json][-1], sigma
         case ExpressionType.LET_BLOCK:
             # Let is a definition expression (in Daphne) along with an expression.
             definition, sub_expr = expression[0], expression[1]
             # Get the variable name and expression for the definition.
             var_name, var_expr = definition.json[0], definition[0]
             # Get the value for the variable and assign to the variable name.
-            # Todo: potentially overwriting local_env. Is this a good idea?
-            local_env[var_name], new_sigma = eval_expression(var_expr, sigma, local_env, procedures)
-            return eval_expression(sub_expr, new_sigma, local_env, procedures)
+            var_value, new_sigma = eval_expression(var_expr, sigma, local_env, procedures)
+            local_env[var_name].append(var_value)
+            r_value, r_sigma = eval_expression(sub_expr, new_sigma, local_env, procedures)
+            local_env[var_name].pop()
+            return r_value, r_sigma
         case ExpressionType.IF_BLOCK:
             # Get the relevant components of the ternary.
             predicate, consequent, antecedent = expression.sub_expressions
@@ -121,8 +131,17 @@ def eval_expression(expression, sigma, local_env, procedures):
             dist_obj, new_sigma = eval_expression(expression[0], sigma, local_env, procedures)
             return dist_obj.sample(), new_sigma
         case ExpressionType.OBSERVE:
-            # Todo: Not sure what to do with observe.
-            return None, sigma
+            match eval_scheme:
+                case EvaluationScheme.IS:
+                    assert len(expression.sub_expressions) == 2
+                    e1, e2 = expression.sub_expressions
+                    d1, sigma = eval_expression(e1, sigma, local_env, eval_scheme)
+                    c2, sigma = eval_expression(e2, sigma, local_env, eval_scheme)
+                    log_w = d1.log_prob(c2)
+                    sigma['log_w'] += log_w
+                    return c2, sigma
+                case other:
+                    return None, sigma
         case other:
             # Handles function calls.
             values = []
@@ -133,17 +152,19 @@ def eval_expression(expression, sigma, local_env, procedures):
             if expr_type == ExpressionType.LOCAL_FNC:
                 procedure = procedures[expression.json[0]]
                 for variable_name, value in zip(procedure.variable_names, values):
-                    # Todo: overwriting local env. Is this a good idea?
-                    local_env[variable_name] = value
-                return eval_expression(procedure.expression, sigma, local_env, procedures)
+                    local_env[variable_name].append(value)
+                r_value, r_sigma = eval_expression(procedure.expression, sigma, local_env, procedures)
+                for variable_name in procedure.variable_names:
+                    local_env[variable_name].pop()
+                return r_value, r_sigma
             else:
                 return primitives[expression.json[0]](*values), sigma
 
 
 def evaluate_program(ast, verbose=False):
 
-    local_env = {}
-    sigma = []
+    local_env = defaultdict(list)
+    sigma = {}
     vals = []
     for expr in ast.expressions:
         val, sigma = eval_expression(expr, sigma, local_env, ast.procedures)

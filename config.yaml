@@ -8,7 +8,9 @@ daphne_dir: '../daphne' # NOTE: This path should be relative to the homework dir
 # Tests and programs to run
 deterministic_tests:  [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]
 probabilistic_tests: [1, 2, 3, 4, 5, 6, 7, 8]
-HW2_programs: [1, 2, 3, 4]
+
+program_set : ['HW2']
+programs: [1, 2, 3, 4]
 
 # Daphne (re)compilation
 compile: False
@@ -19,3 +21,4 @@ mode: 'desugar'
 
 # Inference
 num_samples: 1e3
+algorithm: 'importance_sampling'

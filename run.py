@@ -61,7 +61,8 @@ def run_tests(tests, mode, test_type, base_dir, daphne_dir, num_samples=int(1e4)
     print('All '+test_type+' tests passed\n')
 
 
-def run_programs(programs, mode, prog_set, base_dir, daphne_dir, num_samples=int(1e3), tmax=None, compile=False, wandb_run=False, verbose=False,):
+def run_programs(programs, mode, prog_set, base_dir, daphne_dir, num_samples=int(1e3), algorithm=None, tmax=None,
+                 compile=False, wandb_run=False, verbose=False,):
 
     # File paths
     prog_dir = base_dir+'/programs/'+prog_set+'/'
@@ -78,6 +79,7 @@ def run_programs(programs, mode, prog_set, base_dir, daphne_dir, num_samples=int
         print('Maximum samples [log10]:', np.log10(num_samples))
         print('Maximum time [s]:', tmax)
         print('Evaluation scheme:', mode)
+        print('Algorithm: ', algorithm)
         ast_or_graph = load_program(daphne_dir, daphne_prog(i), json_prog(i), mode=mode, compile=compile)
         ast_or_graph = create_class(ast_or_graph, mode)
         samples = prior_samples(ast_or_graph, mode, num_samples, tmax=tmax, wandb_name=wandb_name, verbose=verbose)
@@ -123,9 +125,14 @@ def run_all(cfg):
     run_tests(tests, mode=mode, test_type='probabilistic', base_dir=base_dir, daphne_dir=daphne_dir, compile=compile)
 
     # Programs
-    programs = cfg['HW2_programs']
-    run_programs(programs, mode=mode, prog_set='HW2', base_dir=base_dir, daphne_dir=daphne_dir, num_samples=num_samples, 
-        compile=compile, wandb_run=wandb_run, verbose=False)
+    program_set = cfg['program_set']
+    programs = cfg['programs']
+    algorithm = cfg['algorithm']
+    run_programs(
+        programs, mode=mode, prog_set=program_set, base_dir=base_dir, daphne_dir=daphne_dir, num_samples=num_samples,
+        algorithm=algorithm, compile=compile, wandb_run=wandb_run, verbose=False)
+
+
 
     # Finalize W&B
     if wandb_run: wandb.finish()
