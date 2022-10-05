@@ -37,7 +37,9 @@ def prior_samples(ast_or_graph, mode, num_samples, tmax=None, wandb_name=None, v
         if wandb_name is not None: log_sample(sample, i, wandb_name=wandb_name)
         samples.append(sample)
         if (tmax is not None) and time() > max_time: break
-    return samples
+    weights = tc.ones(num_samples)
+    weights /= weights.sum()
+    return samples, weights
 
 
 def importance_samples(ast_or_graph, mode, num_samples, tmax=None, wandb_name=None, verbose=False):
@@ -52,11 +54,16 @@ def importance_samples(ast_or_graph, mode, num_samples, tmax=None, wandb_name=No
             weights.append(tc.exp(sigma['log_w']))
         else:
             samples, sigma, _ = evaluate_graph(ast_or_graph, eval_scheme=EvaluationScheme.IS, verbose=verbose)
-    flat_samples = flatten_sample(samples)
-    flat_weights = flatten_sample(weights)
-    flat_weights /= flat_weights.sum()
+    print(samples[0].shape)
+    sample_tensor = tc.stack(samples)
+    weight_tensor = tc.tensor(weights)
+    weight_tensor /= weight_tensor.sum()
+    while len(weight_tensor.shape) < len(sample_tensor.shape):
+        weight_tensor = weight_tensor[..., None]
 
-    return flat_samples, flat_weights
+    print(f'Posterior mean: {(sample_tensor * weight_tensor).sum(dim=0)}')
+
+    return sample_tensor, weight_tensor
 
 
 def sample(ast_or_graph, mode, eval_scheme, num_samples, tmax=None, wandb_name=None, verbose=False):

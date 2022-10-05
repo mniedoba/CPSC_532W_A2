@@ -83,7 +83,7 @@ def run_programs(programs, mode, prog_sets, base_dir, daphne_dir, num_samples=in
             print('Sampling Type: ', sample_type)
             ast_or_graph = load_program(daphne_dir, daphne_prog(i), json_prog(i), mode=mode, compile=compile)
             ast_or_graph = create_class(ast_or_graph, mode)
-            samples = sample(ast_or_graph, mode, sample_type, num_samples, tmax=tmax, wandb_name=wandb_name, verbose=verbose)
+            samples, weights = sample(ast_or_graph, mode, sample_type, num_samples, tmax=tmax, wandb_name=wandb_name, verbose=verbose)
             samples = tc.stack(samples).type(tc.float)
             np.savetxt(results_file(i), samples)
 
