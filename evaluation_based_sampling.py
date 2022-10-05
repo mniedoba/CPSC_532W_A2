@@ -6,12 +6,13 @@ from collections import defaultdict
 # Project imports
 from primitives import primitives
 
-class EvaluationScheme(Enum):
 
-    DEFAULT = 0
-    IS = 1
-    MH = 2
-    GIBBS = 3
+class EvaluationScheme(str, Enum):
+
+    PRIOR = "PRIOR"
+    IS = "IMPORTANCE"
+    MH = "MH"
+    HMC = "HMC"
 
 class ExpressionType(Enum):
 
@@ -98,7 +99,7 @@ class AbstractSyntaxTree:
                 self.expressions.append(Expression(elem))
 
 
-def eval_expression(expression, sigma, local_env, procedures, eval_scheme=EvaluationScheme.DEFAULT):
+def eval_expression(expression, sigma, local_env, procedures, eval_scheme=EvaluationScheme.PRIOR):
     """Helper fucnction which evaluates expression, using a local environment and a sigma."""
     expr_type = expression.type
 
@@ -115,20 +116,20 @@ def eval_expression(expression, sigma, local_env, procedures, eval_scheme=Evalua
             # Get the variable name and expression for the definition.
             var_name, var_expr = definition.json[0], definition[0]
             # Get the value for the variable and assign to the variable name.
-            var_value, new_sigma = eval_expression(var_expr, sigma, local_env, procedures)
+            var_value, new_sigma = eval_expression(var_expr, sigma, local_env, procedures, eval_scheme)
             local_env[var_name].append(var_value)
-            r_value, r_sigma = eval_expression(sub_expr, new_sigma, local_env, procedures)
+            r_value, r_sigma = eval_expression(sub_expr, new_sigma, local_env, procedures, eval_scheme)
             local_env[var_name].pop()
             return r_value, r_sigma
         case ExpressionType.IF_BLOCK:
             # Get the relevant components of the ternary.
             predicate, consequent, antecedent = expression.sub_expressions
             # Evaluate the condition
-            predicate_value, new_sigma = eval_expression(predicate, sigma, local_env, procedures)
+            predicate_value, new_sigma = eval_expression(predicate, sigma, local_env, procedures, eval_scheme)
             # Evaluate the sub expression based on the predicate value.
-            return eval_expression(consequent if predicate_value else antecedent, sigma, local_env, procedures)
+            return eval_expression(consequent if predicate_value else antecedent, sigma, local_env, procedures, eval_scheme)
         case ExpressionType.SAMPLE:
-            dist_obj, new_sigma = eval_expression(expression[0], sigma, local_env, procedures)
+            dist_obj, new_sigma = eval_expression(expression[0], sigma, local_env, procedures, eval_scheme)
             return dist_obj.sample(), new_sigma
         case ExpressionType.OBSERVE:
             match eval_scheme:
@@ -138,6 +139,8 @@ def eval_expression(expression, sigma, local_env, procedures, eval_scheme=Evalua
                     d1, sigma = eval_expression(e1, sigma, local_env, eval_scheme)
                     c2, sigma = eval_expression(e2, sigma, local_env, eval_scheme)
                     log_w = d1.log_prob(c2)
+                    if 'log_w' not in sigma:
+                        sigma['log_w'] = 0
                     sigma['log_w'] += log_w
                     return c2, sigma
                 case other:
@@ -147,13 +150,13 @@ def eval_expression(expression, sigma, local_env, procedures, eval_scheme=Evalua
             values = []
             # Get the values which will be bound to function arguments.
             for sub_expr in expression.sub_expressions:
-                value, sigma = eval_expression(sub_expr, sigma, local_env, procedures)
+                value, sigma = eval_expression(sub_expr, sigma, local_env, procedures, eval_scheme)
                 values.append(value)
             if expr_type == ExpressionType.LOCAL_FNC:
                 procedure = procedures[expression.json[0]]
                 for variable_name, value in zip(procedure.variable_names, values):
                     local_env[variable_name].append(value)
-                r_value, r_sigma = eval_expression(procedure.expression, sigma, local_env, procedures)
+                r_value, r_sigma = eval_expression(procedure.expression, sigma, local_env, procedures, eval_scheme)
                 for variable_name in procedure.variable_names:
                     local_env[variable_name].pop()
                 return r_value, r_sigma
@@ -161,13 +164,13 @@ def eval_expression(expression, sigma, local_env, procedures, eval_scheme=Evalua
                 return primitives[expression.json[0]](*values), sigma
 
 
-def evaluate_program(ast, verbose=False):
+def evaluate_program(ast, eval_scheme=EvaluationScheme.PRIOR, verbose=False):
 
     local_env = defaultdict(list)
     sigma = {}
     vals = []
     for expr in ast.expressions:
-        val, sigma = eval_expression(expr, sigma, local_env, ast.procedures)
+        val, sigma = eval_expression(expr, sigma, local_env, ast.procedures, eval_scheme)
         vals.append(val)
     if len(vals) == 1:
         return vals[0], sigma, local_env

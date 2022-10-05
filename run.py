@@ -8,7 +8,7 @@ import hydra
 # Project imports
 from daphne import load_program
 from tests import is_tol, run_probabilistic_test, load_truth
-from general_sampling import get_sample, prior_samples
+from general_sampling import get_sample, sample
 from evaluation_based_sampling import AbstractSyntaxTree
 from graph_based_sampling import Graph
 from utils import wandb_plots
@@ -61,45 +61,46 @@ def run_tests(tests, mode, test_type, base_dir, daphne_dir, num_samples=int(1e4)
     print('All '+test_type+' tests passed\n')
 
 
-def run_programs(programs, mode, prog_set, base_dir, daphne_dir, num_samples=int(1e3), algorithm=None, tmax=None,
+def run_programs(programs, mode, prog_sets, base_dir, daphne_dir, num_samples=int(1e3), sample_type=None, tmax=None,
                  compile=False, wandb_run=False, verbose=False,):
 
     # File paths
-    prog_dir = base_dir+'/programs/'+prog_set+'/'
     daphne_prog = lambda i: prog_dir+'%d.daphne'%(i)
     json_prog = lambda i: prog_dir+'%d_%s.json'%(i, mode)
-    results_file = lambda i: 'data/%s/%d_%s.dat'%(prog_set, i, mode)
 
-    for i in programs:
+    for prog_set in prog_sets:
+        prog_dir = base_dir + '/programs/' + prog_set + '/'
+        results_file = lambda i: 'data/%s/%d_%s.dat' % (prog_set, i, mode)
+        for i in programs:
 
-        # Draw samples
-        t_start = time()
-        wandb_name = 'Program %s samples'%i if wandb_run else None
-        print('Running: '+prog_set+':' ,i)
-        print('Maximum samples [log10]:', np.log10(num_samples))
-        print('Maximum time [s]:', tmax)
-        print('Evaluation scheme:', mode)
-        print('Algorithm: ', algorithm)
-        ast_or_graph = load_program(daphne_dir, daphne_prog(i), json_prog(i), mode=mode, compile=compile)
-        ast_or_graph = create_class(ast_or_graph, mode)
-        samples = prior_samples(ast_or_graph, mode, num_samples, tmax=tmax, wandb_name=wandb_name, verbose=verbose)
-        samples = tc.stack(samples).type(tc.float)
-        np.savetxt(results_file(i), samples)
+            # Draw samples
+            t_start = time()
+            wandb_name = 'Program %s samples'%i if wandb_run else None
+            print('Running: '+prog_set+':' ,i)
+            print('Maximum samples [log10]:', np.log10(num_samples))
+            print('Maximum time [s]:', tmax)
+            print('Evaluation scheme:', mode)
+            print('Sampling Type: ', sample_type)
+            ast_or_graph = load_program(daphne_dir, daphne_prog(i), json_prog(i), mode=mode, compile=compile)
+            ast_or_graph = create_class(ast_or_graph, mode)
+            samples = sample(ast_or_graph, mode, sample_type, num_samples, tmax=tmax, wandb_name=wandb_name, verbose=verbose)
+            samples = tc.stack(samples).type(tc.float)
+            np.savetxt(results_file(i), samples)
 
-        # Calculate some properties of the data
-        print('Samples shape:', samples.shape)
-        print('First sample:', samples[0])
-        print('Sample mean:', samples.mean(axis=0))
-        print('Sample standard deviation:', samples.std(axis=0))
+            # Calculate some properties of the data
+            print('Samples shape:', samples.shape)
+            print('First sample:', samples[0])
+            print('Sample mean:', samples.mean(axis=0))
+            print('Sample standard deviation:', samples.std(axis=0))
 
-        # Weights & biases plots
-        if wandb_run: wandb_plots(samples, i)
+            # Weights & biases plots
+            if wandb_run: wandb_plots(samples, i)
 
-        # Finish
-        t_finish = time()
-        print('Time taken [s]:', t_finish-t_start)
-        print('Number of samples:', len(samples))
-        print('Finished program {}\n'.format(i))
+            # Finish
+            t_finish = time()
+            print('Time taken [s]:', t_finish-t_start)
+            print('Number of samples:', len(samples))
+            print('Finished program {}\n'.format(i))
 
 
 @hydra.main(version_base=None, config_path='', config_name='config')
@@ -125,12 +126,12 @@ def run_all(cfg):
     run_tests(tests, mode=mode, test_type='probabilistic', base_dir=base_dir, daphne_dir=daphne_dir, compile=compile)
 
     # Programs
-    program_set = cfg['program_set']
+    program_sets = cfg['program_sets']
     programs = cfg['programs']
-    algorithm = cfg['algorithm']
+    sample_type = cfg['sample_type']
     run_programs(
-        programs, mode=mode, prog_set=program_set, base_dir=base_dir, daphne_dir=daphne_dir, num_samples=num_samples,
-        algorithm=algorithm, compile=compile, wandb_run=wandb_run, verbose=False)
+        programs, mode=mode, prog_sets=program_sets, base_dir=base_dir, daphne_dir=daphne_dir, num_samples=num_samples,
+        sample_type=sample_type, compile=compile, wandb_run=wandb_run, verbose=False)
 
 
 
