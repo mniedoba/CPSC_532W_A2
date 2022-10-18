@@ -78,6 +78,9 @@ primitives = {
     '>': torch.gt,
     '>=': torch.ge,
     '=': torch.eq,
+    'and': torch.logical_and,
+    'or': torch.logical_or,
+    'not': torch.logical_not,
     'first': first,
     'second': second,
     'last': last,
@@ -118,7 +121,10 @@ primitives = {
     'beta': torch.distributions.Beta,
     'bernoulli': torch.distributions.Bernoulli,
     'exponential': torch.distributions.Exponential,
-    'discrete': torch.distributions.Categorical
+    'discrete': torch.distributions.Categorical,
+    'gamma': torch.distributions.Gamma,
+    'dirichlet': torch.distributions.Dirichlet,
+    'flip': torch.distributions.Bernoulli
     # ...
 
 }

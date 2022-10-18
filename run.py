@@ -9,9 +9,9 @@ import hydra
 from daphne import load_program
 from tests import is_tol, run_probabilistic_test, load_truth
 from general_sampling import get_sample, sample
-from evaluation_based_sampling import AbstractSyntaxTree
+from evaluation_based_sampling import AbstractSyntaxTree, EvaluationScheme
 from graph_based_sampling import Graph
-from utils import wandb_plots
+from utils import wandb_plots_hw2, wandb_plots_hw3, resample, log_sample
 
 def create_class(ast_or_graph, mode):
     if mode == 'desugar':
@@ -83,9 +83,16 @@ def run_programs(programs, mode, prog_sets, base_dir, daphne_dir, num_samples=in
             print('Sampling Type: ', sample_type)
             ast_or_graph = load_program(daphne_dir, daphne_prog(i), json_prog(i), mode=mode, compile=compile)
             ast_or_graph = create_class(ast_or_graph, mode)
-            samples, weights = sample(ast_or_graph, mode, sample_type, num_samples, tmax=tmax, wandb_name=wandb_name, verbose=verbose)
-            samples = tc.stack(samples).type(tc.float)
-            np.savetxt(results_file(i), samples)
+            samples, weights = sample(ast_or_graph, mode, sample_type, num_samples, tmax=tmax, wandb_name=wandb_name,
+                                      verbose=verbose)
+            samples = samples.float()
+            weights = weights.float()
+
+            if sample_type == EvaluationScheme.IS:
+                samples = resample(samples, weights)
+                if wandb_run is not None:
+                    for t in range(len(samples)):
+                        log_sample(samples[t], t, wandb_name)
 
             # Calculate some properties of the data
             print('Samples shape:', samples.shape)
@@ -94,7 +101,11 @@ def run_programs(programs, mode, prog_sets, base_dir, daphne_dir, num_samples=in
             print('Sample standard deviation:', samples.std(axis=0))
 
             # Weights & biases plots
-            if wandb_run: wandb_plots(samples, i)
+            if wandb_run:
+                if prog_set == 'HW2':
+                    wandb_plots_hw2(samples, i)
+                elif prog_set == 'HW3':
+                    wandb_plots_hw3(samples, i)
 
             # Finish
             t_finish = time()
@@ -114,9 +125,6 @@ def run_all(cfg):
     base_dir = cfg['base_dir']
     daphne_dir = cfg['daphne_dir']
 
-    # Initialize W&B
-    if wandb_run: wandb.init(project='HW2-'+mode, entity='cs532-2022')
-
     # Deterministic tests
     tests = cfg['deterministic_tests']
     run_tests(tests, mode=mode, test_type='deterministic', base_dir=base_dir, daphne_dir=daphne_dir, compile=compile)
@@ -129,9 +137,11 @@ def run_all(cfg):
     program_sets = cfg['program_sets']
     programs = cfg['programs']
     sample_type = cfg['sample_type']
+    # Initialize W&B
+    if wandb_run: wandb.init(project='HW3-'+sample_type, entity='cs532-2022')
     run_programs(
         programs, mode=mode, prog_sets=program_sets, base_dir=base_dir, daphne_dir=daphne_dir, num_samples=num_samples,
-        sample_type=sample_type, compile=compile, wandb_run=wandb_run, verbose=False)
+        sample_type=sample_type, compile=compile, wandb_run=wandb_run, verbose=False, tmax=cfg.tmax)
 
 
 

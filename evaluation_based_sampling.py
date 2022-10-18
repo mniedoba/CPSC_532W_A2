@@ -10,8 +10,8 @@ from primitives import primitives
 class EvaluationScheme(str, Enum):
 
     PRIOR = "PRIOR"
-    IS = "IMPORTANCE"
-    MH = "MH"
+    IS = "IS"
+    METROPOLIS_GIBBS = "MHG"
     HMC = "HMC"
 
 class ExpressionType(Enum):

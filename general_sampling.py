@@ -4,7 +4,7 @@ from time import time
 
 # Project imports
 from evaluation_based_sampling import evaluate_program, EvaluationScheme
-from graph_based_sampling import evaluate_graph
+from graph_based_sampling import evaluate_graph, metropolis_within_gibbs, HMC
 from utils import log_sample
 
 def flatten_sample(sample):
@@ -44,16 +44,18 @@ def prior_samples(ast_or_graph, mode, num_samples, tmax=None, wandb_name=None, v
 
 def importance_samples(ast_or_graph, mode, num_samples, tmax=None, wandb_name=None, verbose=False):
     """Generate a set of samples and associated weights from the posterior of a FOPPL program."""
-
     samples, weights = [], []
-    if (tmax is not None): max_time = time() + tmax
-    for i in range(num_samples):
+    if (tmax is not None):
+        max_time = time() + tmax
+    done = False
+    while not done:
         if mode == 'desugar':
             sample, sigma, _ = evaluate_program(ast_or_graph, eval_scheme=EvaluationScheme.IS, verbose=verbose)
             samples.append(sample)
             weights.append(tc.exp(sigma['log_w']))
         else:
             samples, sigma, _ = evaluate_graph(ast_or_graph, eval_scheme=EvaluationScheme.IS, verbose=verbose)
+        done = len(samples) == num_samples or time() >= max_time
     print(samples[0].shape)
     sample_tensor = tc.stack(samples)
     weight_tensor = tc.tensor(weights)
@@ -66,14 +68,16 @@ def importance_samples(ast_or_graph, mode, num_samples, tmax=None, wandb_name=No
     return sample_tensor, weight_tensor
 
 
-def sample(ast_or_graph, mode, eval_scheme, num_samples, tmax=None, wandb_name=None, verbose=False):
 
+def sample(ast_or_graph, mode, eval_scheme, num_samples, tmax=None, wandb_name=None, verbose=False):
     match eval_scheme:
         case EvaluationScheme.PRIOR:
             return prior_samples(ast_or_graph, mode, num_samples, tmax, wandb_name, verbose)
         case EvaluationScheme.IS:
             return importance_samples(ast_or_graph, mode, num_samples, tmax, wandb_name, verbose)
-        case EvaluationScheme.MH:
-            return None
+        case EvaluationScheme.METROPOLIS_GIBBS:
+            return metropolis_within_gibbs(ast_or_graph, mode, num_samples, wandb_name, tmax,)
         case EvaluationScheme.HMC:
-            return None
+            return HMC(ast_or_graph, mode, num_samples, wandb_name, tmax,)
+        case other:
+            raise ValueError(f'Unknown eval scheme {eval_scheme}')

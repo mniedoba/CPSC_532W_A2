@@ -1,6 +1,14 @@
 import numpy as np
 import wandb
 
+def resample(samples, weights):
+    while weights.dim() > 1:
+        weights = weights[..., 0]
+    normalized_weights = weights.numpy() / weights.numpy().sum()
+    indices = np.random.choice(samples.shape[0], samples.shape[0],replace=True, p=normalized_weights)
+    print(samples.shape, indices.shape)
+    return samples[indices]
+
 def log_sample(sample, i, wandb_name):
     '''
     Log an individual sample to W&B
