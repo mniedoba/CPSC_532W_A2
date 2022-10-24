@@ -11,6 +11,7 @@ from tests import is_tol, run_probabilistic_test, load_truth
 from general_sampling import get_sample, sample
 from evaluation_based_sampling import AbstractSyntaxTree, EvaluationScheme
 from graph_based_sampling import Graph
+from bbvi import run_BBVI
 from utils import wandb_plots_hw2, wandb_plots_hw3, resample, log_sample
 
 def create_class(ast_or_graph, mode):
@@ -83,16 +84,20 @@ def run_programs(programs, mode, prog_sets, base_dir, daphne_dir, num_samples=in
             print('Sampling Type: ', sample_type)
             ast_or_graph = load_program(daphne_dir, daphne_prog(i), json_prog(i), mode=mode, compile=compile)
             ast_or_graph = create_class(ast_or_graph, mode)
-            samples, weights = sample(ast_or_graph, mode, sample_type, num_samples, tmax=tmax, wandb_name=wandb_name,
-                                      verbose=verbose)
-            samples = samples.float()
-            weights = weights.float()
 
-            if sample_type == EvaluationScheme.IS:
-                samples = resample(samples, weights)
-                if wandb_run is not None:
-                    for t in range(len(samples)):
-                        log_sample(samples[t], t, wandb_name)
+            if prog_set == 'HW4':
+                samples = run_BBVI(ast_or_graph, mode, num_samples, tmax, wandb_name, verbose, i)
+            else:
+                samples, weights = sample(ast_or_graph, mode, sample_type, num_samples, tmax=tmax, wandb_name=wandb_name,
+                                          verbose=verbose)
+                samples = samples.float()
+                weights = weights.float()
+
+                if sample_type == EvaluationScheme.IS:
+                    samples = resample(samples, weights)
+                    if wandb_run is not None:
+                        for t in range(len(samples)):
+                            log_sample(samples[t], t, wandb_name)
 
             # Calculate some properties of the data
             print('Samples shape:', samples.shape)

@@ -27,13 +27,13 @@ class Graph:
 
         # Link functions are mappings from nodes to expressions.
         self.link_functions = {k: Expression(v) for k, v in self.json[1]['P'].items()}
-        self.latents = set()
-        self.observed = set()
+        self.latents = []
+        self.observed = []
         for node in self.ordered_nodes:
             if self.link_functions[node].type == ExpressionType.SAMPLE:
-                self.latents.add(node)
+                self.latents.append(node)
             elif self.link_functions[node].type == ExpressionType.OBSERVE:
-                self.observed.add(node)
+                self.observed.append(node)
 
         # Procedures don't seem to be used in the syntax at the moment?? Not really sure what is up with that.
         self.procedures = self.json[0] #Todo.

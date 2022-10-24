@@ -104,6 +104,7 @@ primitives = {
     '*': torch.mul,
     '/': torch.div,
     'sqrt': torch.sqrt,
+    'abs': torch.abs,
     # ...
 
     # Containers
