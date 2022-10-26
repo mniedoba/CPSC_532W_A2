@@ -6,6 +6,7 @@
       pi (sample (dirichlet [1.0 1.0 1.0]))
       z-prior (discrete pi)
       z (foreach 7 [y data]
-          (let [z (sample z-prior)]
-            (observe (get likes z) y)))]
+          (let [z (sample z-prior)
+                _ (observe (get likes z) y)]
+            z))]
   (= (first z) (second z)))

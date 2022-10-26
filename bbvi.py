@@ -1,5 +1,10 @@
 import torch
 from torch.optim import Adam
+import wandb
+
+import matplotlib.pyplot as plt
+import numpy as np
+from tqdm import trange
 
 from distributions import Normal, Gamma, Exponential, Beta, Dirichlet, Bernoulli, Categorical, DistributionCollection
 from evaluation_based_sampling import ExpressionType, eval_expression
@@ -130,7 +135,7 @@ def compute_likelihood(graph, samples):
     return log_likelihoods
 
 
-def run_BBVI(graph, mode, num_samples, tmax, wandb_name, verbose, program, n_steps=50000, samples_per_step=1):
+def run_BBVI(graph, mode, num_samples, tmax, wandb_run, verbose, program, n_steps=50000, samples_per_step=1):
     if mode != 'graph':
         raise ValueError('BBVI is only implemented for graph mode.')
 
@@ -140,7 +145,7 @@ def run_BBVI(graph, mode, num_samples, tmax, wandb_name, verbose, program, n_ste
         Q = get_variational_distribution(program)
     optimizer = Adam(Q.optim_params(), lr=0.01)
 
-    for step in range(n_steps):
+    for step in (pbar := trange(n_steps)):
 
         samples = Q.sample([samples_per_step])
         samples_valid = get_valid_samples(graph, samples)
@@ -164,17 +169,47 @@ def run_BBVI(graph, mode, num_samples, tmax, wandb_name, verbose, program, n_ste
         ELBO_loss.backward()
         optimizer.step()
         optimizer.zero_grad()
-
-        print(f'Q: {Q.params()}, ELBO: {ELBO_loss}')
+        if step % 10 == 0:
+            if wandb_run:
+                wandb.log({f'Program {program} ELBO': ELBO_loss.item(), f'Program {program} step': step})
+            elbo_str = "{0:.2f}".format(ELBO_loss)
+            pbar.set_postfix({'ELBO': elbo_str})
 
     final_latent_samples = Q.sample([num_samples])
+
+    if program == 3:
+        log_out = {}
+        latent_indices = [int(node[-1]) for node in graph.latents[:6]] # [sample5, sample2, sample1] -> [5, 2, 1]
+        var_name = lambda x: 'sigma' if x % 2 else 'mu'
+        var_idx = lambda x: str(x // 2 + 1)
+        component_columns = [var_name(idx) + var_idx(idx) for idx in latent_indices]
+
+        component_values = [[j] + [sample[j] for sample in final_latent_samples[:6]] for j in range(num_samples)]
+        component_table = wandb.Table(data=component_values, columns=['sample'] + component_columns)
+        for col in component_columns:
+            title = f'Program 3 {col}'
+            log_out[title] = wandb.plot.histogram(component_table, value=col, title=title)
+
+        mixture_columns = ['pi1', 'pi2', 'pi3']
+        mixture_data = [[j] + [final_latent_samples[6][j,component] for component in range(3)] for j in range(num_samples)]
+        mixture_table = wandb.Table(data=mixture_data, columns=['sample'] + mixture_columns)
+        for col in mixture_columns:
+            title = f'Program 3 {col}'
+            log_out[title] = wandb.plot.histogram(mixture_table, value=col, title=title)
+        wandb.log(log_out)
+
+
     r_samples = []
     for i in range(num_samples):
         latent_values = {}
         for latent, latent_samples in zip(graph.latents, final_latent_samples):
             latent_values[latent] = [latent_samples[i]]
         r_sample, _ = eval_expression(graph.return_expression, [], latent_values, graph.procedures)
+        if program == 4:
+            flat_r_samples = [tensor.flatten() for tensor in r_sample]
+            r_sample = torch.cat(flat_r_samples)
         r_samples.append(r_sample)
+
     return torch.stack(r_samples)
 
 

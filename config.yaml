@@ -10,7 +10,7 @@ deterministic_tests:  []#1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 
 probabilistic_tests: []#1, 2, 3, 4, 5, 6, 7, 8]
 
 program_sets : ['HW4']
-programs: [1,2,3,4,5]
+programs: [3]
 
 # Daphne (re)compilation
 compile: False
@@ -20,6 +20,6 @@ compile: False
 mode: 'graph'
 
 # Inference
-num_samples: 1000000
+num_samples: 10000
 tmax: 120
 sample_type: 'IS'

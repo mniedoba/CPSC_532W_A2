@@ -23,11 +23,13 @@ def log_sample(sample, i, wandb_name):
     wandb.log(samples_dict)
 
 
-def wandb_plots(samples, program, program_set):
+def wandb_plots(samples, program_set, program):
     if program_set == 'HW2':
         wandb_plots_hw2(samples, program)
     elif program_set == 'HW3':
         wandb_plots_hw3(samples, program)
+    elif program_set == 'HW4':
+        wandb_plots_homework4(samples, program)
     else:
         return
 

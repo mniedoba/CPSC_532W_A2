@@ -12,7 +12,7 @@ from general_sampling import get_sample, sample
 from evaluation_based_sampling import AbstractSyntaxTree, EvaluationScheme
 from graph_based_sampling import Graph
 from bbvi import run_BBVI
-from utils import wandb_plots_hw2, wandb_plots_hw3, resample, log_sample
+from utils import wandb_plots, resample, log_sample
 
 def create_class(ast_or_graph, mode):
     if mode == 'desugar':
@@ -86,7 +86,8 @@ def run_programs(programs, mode, prog_sets, base_dir, daphne_dir, num_samples=in
             ast_or_graph = create_class(ast_or_graph, mode)
 
             if prog_set == 'HW4':
-                samples = run_BBVI(ast_or_graph, mode, num_samples, tmax, wandb_name, verbose, i)
+                samples = run_BBVI(ast_or_graph, mode, num_samples, tmax, wandb_run, verbose, i)
+                samples = samples.float()
             else:
                 samples, weights = sample(ast_or_graph, mode, sample_type, num_samples, tmax=tmax, wandb_name=wandb_name,
                                           verbose=verbose)
@@ -107,10 +108,8 @@ def run_programs(programs, mode, prog_sets, base_dir, daphne_dir, num_samples=in
 
             # Weights & biases plots
             if wandb_run:
-                if prog_set == 'HW2':
-                    wandb_plots_hw2(samples, i)
-                elif prog_set == 'HW3':
-                    wandb_plots_hw3(samples, i)
+                print(prog_set, i)
+                wandb_plots(samples, prog_set, i)
 
             # Finish
             t_finish = time()
@@ -143,7 +142,7 @@ def run_all(cfg):
     programs = cfg['programs']
     sample_type = cfg['sample_type']
     # Initialize W&B
-    if wandb_run: wandb.init(project='HW3-'+sample_type, entity='cs532-2022')
+    if wandb_run: wandb.init(project='HW4', entity='cs532-2022')
     run_programs(
         programs, mode=mode, prog_sets=program_sets, base_dir=base_dir, daphne_dir=daphne_dir, num_samples=num_samples,
         sample_type=sample_type, compile=compile, wandb_run=wandb_run, verbose=False, tmax=cfg.tmax)
